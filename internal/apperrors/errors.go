@@ -10,4 +10,11 @@ var (
 
 	// ErrDuplicateKey is returned when a unique constraint is violated.
 	ErrDuplicateKey = errors.New("duplicate key")
+
+	// ErrNoSeatsAvailable is returned when requested seats are already booked.
+	ErrNoSeatsAvailable = errors.New("seats not available")
+
+	// ErrBookingNotCancellable is returned when a booking cannot be cancelled
+	// (e.g. it is already cancelled or the trip has completed).
+	ErrBookingNotCancellable = errors.New("booking cannot be cancelled")
 )

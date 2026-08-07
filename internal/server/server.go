@@ -12,17 +12,29 @@ import (
 
 // Server wraps the HTTP router and its dependencies.
 type Server struct {
-	router     *gin.Engine
-	pool       *pgxpool.Pool
-	busHandler *handler.BusHandler
+	router          *gin.Engine
+	pool            *pgxpool.Pool
+	busHandler      *handler.BusHandler
+	routeHandler    *handler.RouteHandler
+	scheduleHandler *handler.ScheduleHandler
+	bookingHandler  *handler.BookingHandler
 }
 
 // New creates a fully wired Server: middleware applied, all routes registered.
-func New(pool *pgxpool.Pool, busHandler *handler.BusHandler) *Server {
+func New(
+	pool *pgxpool.Pool,
+	busHandler *handler.BusHandler,
+	routeHandler *handler.RouteHandler,
+	scheduleHandler *handler.ScheduleHandler,
+	bookingHandler *handler.BookingHandler,
+) *Server {
 	s := &Server{
-		router:     gin.New(),
-		pool:       pool,
-		busHandler: busHandler,
+		router:          gin.New(),
+		pool:            pool,
+		busHandler:      busHandler,
+		routeHandler:    routeHandler,
+		scheduleHandler: scheduleHandler,
+		bookingHandler:  bookingHandler,
 	}
 	s.setupMiddleware()
 	s.setupRoutes()
@@ -48,6 +60,9 @@ func (s *Server) setupRoutes() {
 	// API v1
 	v1 := s.router.Group("/api/v1")
 	s.busHandler.RegisterRoutes(v1)
+	s.routeHandler.RegisterRoutes(v1)
+	s.scheduleHandler.RegisterRoutes(v1)
+	s.bookingHandler.RegisterRoutes(v1)
 }
 
 // healthCheck pings the DB and returns the service status.

@@ -33,12 +33,26 @@ func main() {
 	slog.Info("connected to PostgreSQL", "host", cfg.DBHost, "db", cfg.DBName)
 
 	// 4. Build layers (innermost → outermost)
-	busRepo    := repository.NewBusRepository(pool)
-	busSvc     := service.NewBusService(busRepo)
+	// Repositories
+	busRepo := repository.NewBusRepository(pool)
+	routeRepo := repository.NewRouteRepository(pool)
+	scheduleRepo := repository.NewScheduleRepository(pool)
+	bookingRepo := repository.NewBookingRepository(pool)
+
+	// Services
+	busSvc := service.NewBusService(busRepo)
+	routeSvc := service.NewRouteService(routeRepo)
+	scheduleSvc := service.NewScheduleService(scheduleRepo)
+	bookingSvc := service.NewBookingService(bookingRepo, scheduleRepo)
+
+	// Handlers
 	busHandler := handler.NewBusHandler(busSvc)
+	routeHandler := handler.NewRouteHandler(routeSvc)
+	scheduleHandler := handler.NewScheduleHandler(scheduleSvc)
+	bookingHandler := handler.NewBookingHandler(bookingSvc)
 
 	// 5. Start server
-	srv := server.New(pool, busHandler)
+	srv := server.New(pool, busHandler, routeHandler, scheduleHandler, bookingHandler)
 
 	slog.Info("server starting", "port", cfg.Port)
 	if err := srv.Run(cfg.Port); err != nil {
