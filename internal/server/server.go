@@ -41,9 +41,12 @@ func New(
 	return s
 }
 
-// Run starts the HTTP server on the given port (e.g. "8080").
-func (s *Server) Run(port string) error {
-	return s.router.Run(":" + port)
+// HTTPServer returns a standard *http.Server instance for graceful shutdown support.
+func (s *Server) HTTPServer(port string) *http.Server {
+	return &http.Server{
+		Addr:    ":" + port,
+		Handler: s.router,
+	}
 }
 
 // setupMiddleware registers all global middleware.

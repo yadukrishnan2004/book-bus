@@ -10,8 +10,9 @@ type ScheduleStatus string
 
 const (
 	ScheduleStatusScheduled ScheduleStatus = "scheduled"
-	ScheduleStatusCancelled ScheduleStatus = "cancelled"
+	ScheduleStatusOngoing   ScheduleStatus = "ongoing"
 	ScheduleStatusCompleted ScheduleStatus = "completed"
+	ScheduleStatusCancelled ScheduleStatus = "cancelled"
 )
 
 // Schedule represents a bus running on a specific route at a specific time.
@@ -60,6 +61,7 @@ type ScheduleRepository interface {
 	GetByID(ctx context.Context, id string) (*Schedule, error)
 	List(ctx context.Context, filter ScheduleFilter, limit, offset int) ([]*Schedule, error)
 	GetSeatMap(ctx context.Context, scheduleID string) ([]SeatInfo, error)
+	UpdateStatus(ctx context.Context, id string, status ScheduleStatus) (*Schedule, int, error)
 }
 
 // ScheduleService defines the business-logic contract for schedules.
@@ -68,4 +70,5 @@ type ScheduleService interface {
 	GetSchedule(ctx context.Context, id string) (*Schedule, error)
 	ListSchedules(ctx context.Context, filter ScheduleFilter, limit, offset int) ([]*Schedule, error)
 	GetSeatMap(ctx context.Context, scheduleID string) ([]SeatInfo, error)
+	UpdateStatus(ctx context.Context, id string, status ScheduleStatus) (*Schedule, int, error)
 }

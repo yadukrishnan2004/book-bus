@@ -32,17 +32,17 @@ func (h *RouteHandler) RegisterRoutes(rg *gin.RouterGroup) {
 func (h *RouteHandler) Create(c *gin.Context) {
 	var req models.CreateRouteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
+		RespondBadRequest(c, "invalid request", err.Error())
 		return
 	}
 
 	route, err := h.svc.CreateRoute(c.Request.Context(), req.ToDomainInput())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create route"})
+		HandleError(c, err, "failed to create route")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	RespondJSON(c, http.StatusCreated, gin.H{
 		"message": "route created successfully",
 		"data":    models.NewRouteResponse(route),
 	})
@@ -52,7 +52,7 @@ func (h *RouteHandler) Create(c *gin.Context) {
 func (h *RouteHandler) List(c *gin.Context) {
 	routes, err := h.svc.ListRoutes(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list routes"})
+		HandleError(c, err, "failed to list routes")
 		return
 	}
 
@@ -61,5 +61,5 @@ func (h *RouteHandler) List(c *gin.Context) {
 		response = append(response, models.NewRouteResponse(r))
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": response, "count": len(response)})
+	RespondJSON(c, http.StatusOK, gin.H{"data": response, "count": len(response)})
 }

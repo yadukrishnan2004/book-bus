@@ -150,3 +150,71 @@ func (r *scheduleRepository) GetSeatMap(ctx context.Context, scheduleID string) 
 	}
 	return seats, nil
 }
+
+// UpdateStatus updates the status of a schedule and cascades status changes to passenger bookings in a single transaction.
+func (r *scheduleRepository) UpdateStatus(ctx context.Context, id string, newStatus domain.ScheduleStatus) (*domain.Schedule, int, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("repository: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock the schedule row
+	var currentStatus domain.ScheduleStatus
+	err = tx.QueryRow(ctx, `SELECT status FROM schedules WHERE id = $1 FOR UPDATE`, id).Scan(&currentStatus)
+	if err != nil {
+		return nil, 0, mapDBError(err, "lock schedule for status update")
+	}
+
+	// Validate terminal states (cannot update if already completed or cancelled)
+	if currentStatus == domain.ScheduleStatusCompleted || currentStatus == domain.ScheduleStatusCancelled {
+		return nil, 0, domain.ErrInvalidStatusTransition
+	}
+
+	// Update schedule status
+	query := `
+		UPDATE schedules
+		SET status = $1, updated_at = NOW()
+		WHERE id = $2
+		RETURNING id, bus_id, route_id, departure_time, arrival_time, price, available_seats, status, created_at, updated_at
+	`
+	s := &domain.Schedule{}
+	err = tx.QueryRow(ctx, query, newStatus, id).Scan(
+		&s.ID, &s.BusID, &s.RouteID, &s.DepartureTime, &s.ArrivalTime,
+		&s.Price, &s.AvailableSeats, &s.Status, &s.CreatedAt, &s.UpdatedAt,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("repository: update schedule status: %w", err)
+	}
+
+	affectedBookings := 0
+	// Cascade booking status updates
+	if newStatus == domain.ScheduleStatusCompleted {
+		tag, err := tx.Exec(ctx, `
+			UPDATE bookings
+			SET status = 'completed', updated_at = NOW()
+			WHERE schedule_id = $1 AND status = 'confirmed'
+		`, id)
+		if err != nil {
+			return nil, 0, fmt.Errorf("repository: update bookings to completed: %w", err)
+		}
+		affectedBookings = int(tag.RowsAffected())
+	} else if newStatus == domain.ScheduleStatusCancelled {
+		tag, err := tx.Exec(ctx, `
+			UPDATE bookings
+			SET status = 'cancelled', updated_at = NOW()
+			WHERE schedule_id = $1 AND status = 'confirmed'
+		`, id)
+		if err != nil {
+			return nil, 0, fmt.Errorf("repository: update bookings to cancelled: %w", err)
+		}
+		affectedBookings = int(tag.RowsAffected())
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, 0, fmt.Errorf("repository: commit status update: %w", err)
+	}
+
+	return s, affectedBookings, nil
+}
+

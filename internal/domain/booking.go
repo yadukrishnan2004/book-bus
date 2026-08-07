@@ -10,6 +10,7 @@ type BookingStatus string
 
 const (
 	BookingStatusConfirmed BookingStatus = "confirmed"
+	BookingStatusCompleted BookingStatus = "completed"
 	BookingStatusCancelled BookingStatus = "cancelled"
 )
 

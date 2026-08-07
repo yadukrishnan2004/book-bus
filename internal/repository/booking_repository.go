@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,7 +44,7 @@ func (r *bookingRepository) GetBookedSeats(ctx context.Context, scheduleID strin
 	return seats, rows.Err()
 }
 
-// CreateMany atomically inserts one booking row per seat and decrements available_seats.
+// CreateMany atomically inserts seat rows in bulk and decrements available_seats.
 // It uses SELECT FOR UPDATE on the schedule to prevent race conditions.
 func (r *bookingRepository) CreateMany(ctx context.Context, input domain.CreateBookingInput, reference string, pricePerSeat float64) ([]*domain.Booking, error) {
 	tx, err := r.db.Begin(ctx)
@@ -84,28 +85,44 @@ func (r *bookingRepository) CreateMany(ctx context.Context, input domain.CreateB
 		return nil, apperrors.ErrNoSeatsAvailable
 	}
 
-	// Insert one row per seat
+	// Bulk insert all seats in a single SQL query round-trip
+	valueStrings := make([]string, 0, len(input.SeatNumbers))
+	valueArgs := make([]interface{}, 0, len(input.SeatNumbers)*6)
+	for i, seatNum := range input.SeatNumbers {
+		base := i * 6
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, 'confirmed', $%d, $%d, $%d)", base+1, base+2, base+3, base+4, base+5, base+6))
+		valueArgs = append(valueArgs, reference, input.ScheduleID, seatNum, pricePerSeat, input.PassengerName, input.PassengerPhone)
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO bookings
+			(booking_reference, schedule_id, seat_number, status, total_price, passenger_name, passenger_phone)
+		VALUES %s
+		RETURNING id, booking_reference, schedule_id, seat_number, status,
+		          total_price, passenger_name, passenger_phone,
+		          booked_at, created_at, updated_at
+	`, strings.Join(valueStrings, ", "))
+
+	rows, err := tx.Query(ctx, query, valueArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("repository: bulk insert bookings: %w", mapDBError(err, "bulk insert bookings"))
+	}
+	defer rows.Close()
+
 	var bookings []*domain.Booking
-	for _, seatNum := range input.SeatNumbers {
+	for rows.Next() {
 		b := &domain.Booking{}
-		err = tx.QueryRow(ctx, `
-			INSERT INTO bookings
-				(booking_reference, schedule_id, seat_number, status, total_price, passenger_name, passenger_phone)
-			VALUES ($1, $2, $3, 'confirmed', $4, $5, $6)
-			RETURNING id, booking_reference, schedule_id, seat_number, status,
-			          total_price, passenger_name, passenger_phone,
-			          booked_at, created_at, updated_at
-		`, reference, input.ScheduleID, seatNum, pricePerSeat,
-			input.PassengerName, input.PassengerPhone,
-		).Scan(
+		if err := rows.Scan(
 			&b.ID, &b.BookingReference, &b.ScheduleID, &b.SeatNumber, &b.Status,
 			&b.TotalPrice, &b.PassengerName, &b.PassengerPhone,
 			&b.BookedAt, &b.CreatedAt, &b.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("repository: insert booking seat %d: %w", seatNum, mapDBError(err, "insert booking"))
+		); err != nil {
+			return nil, fmt.Errorf("repository: scan bulk insert booking: %w", err)
 		}
 		bookings = append(bookings, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	// Decrement available seats

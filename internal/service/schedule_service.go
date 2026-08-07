@@ -55,3 +55,14 @@ func (s *scheduleService) GetSeatMap(ctx context.Context, scheduleID string) ([]
 	}
 	return seats, nil
 }
+
+func (s *scheduleService) UpdateStatus(ctx context.Context, id string, status domain.ScheduleStatus) (*domain.Schedule, int, error) {
+	schedule, affected, err := s.repo.UpdateStatus(ctx, id, status)
+	if err != nil {
+		slog.Error("service: update schedule status failed", "id", id, "status", status, "error", err)
+		return nil, 0, err
+	}
+	slog.Info("schedule status updated", "id", id, "new_status", status, "affected_bookings", affected)
+	return schedule, affected, nil
+}
+

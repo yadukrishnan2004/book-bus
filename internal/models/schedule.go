@@ -100,3 +100,17 @@ type SeatItem struct {
 	Number      int  `json:"number"`
 	IsAvailable bool `json:"is_available"`
 }
+
+// UpdateScheduleStatusRequest is the payload for updating a trip's status.
+type UpdateScheduleStatusRequest struct {
+	Status domain.ScheduleStatus `json:"status" binding:"required,oneof=ongoing completed cancelled"`
+}
+
+// UpdateScheduleStatusResponse is the response for trip status updates.
+type UpdateScheduleStatusResponse struct {
+	ID               string                `json:"id"`
+	Status           domain.ScheduleStatus `json:"status"`
+	AffectedBookings int                   `json:"affected_bookings"`
+	UpdatedAt        time.Time             `json:"updated_at"`
+}
+

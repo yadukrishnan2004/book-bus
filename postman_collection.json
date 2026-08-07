@@ -1,0 +1,448 @@
+{
+	"info": {
+		"_postman_id": "b1a2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Book Bus API",
+		"description": "Complete Postman Collection for the Bus Ticket Booking System API (Clean Architecture Go Backend). Includes health check, bus registration, routes, schedules, seat map, preview, booking confirmation, trip status updates, and cancellation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "bus_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "route_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "schedule_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "booking_reference",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check API and database connectivity status."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Buses",
+			"item": [
+				{
+					"name": "Register Bus",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Kerala Express\",\n    \"number_plate\": \"KL-01-AB-1234\",\n    \"total_seats\": 45,\n    \"bus_type\": \"ac\",\n    \"description\": \"Comfortable AC bus for long distance travel\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/buses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"buses"
+							]
+						},
+						"description": "Register a new bus. Allowed bus_type values: standard, sleeper, ac, luxury, mini."
+					},
+					"response": []
+				},
+				{
+					"name": "List Buses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/buses?limit=20&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"buses"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						},
+						"description": "List all registered buses with optional limit and offset pagination."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Bus by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/buses/{{bus_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"buses",
+								"{{bus_id}}"
+							]
+						},
+						"description": "Fetch details of a single bus by its UUID."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Routes",
+			"item": [
+				{
+					"name": "Create Route",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"origin\": \"Kochi\",\n    \"destination\": \"Bangalore\",\n    \"distance_km\": 550.5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/routes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"routes"
+							]
+						},
+						"description": "Create a new route with origin, destination, and distance in km."
+					},
+					"response": []
+				},
+				{
+					"name": "List Routes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/routes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"routes"
+							]
+						},
+						"description": "Fetch a list of all available travel routes."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Schedules",
+			"item": [
+				{
+					"name": "Create Schedule",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"bus_id\": \"{{bus_id}}\",\n    \"route_id\": \"{{route_id}}\",\n    \"departure_time\": \"2026-08-10T21:00:00Z\",\n    \"arrival_time\": \"2026-08-11T06:00:00Z\",\n    \"price\": 850.0\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"schedules"
+							]
+						},
+						"description": "Schedule a bus on a route with departure time, arrival time, and price."
+					},
+					"response": []
+				},
+				{
+					"name": "Step 1 - Browse Schedules",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules?origin=Kochi&destination=Bangalore&date=2026-08-10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"schedules"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "Kochi"
+								},
+								{
+									"key": "destination",
+									"value": "Bangalore"
+								},
+								{
+									"key": "date",
+									"value": "2026-08-10"
+								}
+							]
+						},
+						"description": "Step 1: Search schedules filtered by origin, destination, and departure date."
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2 - Get Seat Map",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules/{{schedule_id}}/seats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"schedules",
+								"{{schedule_id}}",
+								"seats"
+							]
+						},
+						"description": "Step 2: Get real-time seat map showing available and booked seats."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Schedule by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules/{{schedule_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"schedules",
+								"{{schedule_id}}"
+							]
+						},
+						"description": "Fetch details of a single schedule."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Trip Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules/{{schedule_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"schedules",
+								"{{schedule_id}}",
+								"status"
+							]
+						},
+						"description": "Update trip status (ongoing, completed, cancelled). Marking completed or cancelled automatically cascades to passenger bookings."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Bookings",
+			"item": [
+				{
+					"name": "Step 3 - Preview Booking",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"Yadu K\",\n    \"passenger_phone\": \"9876543210\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/preview",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings",
+								"preview"
+							]
+						},
+						"description": "Step 3: Validate selected seats and calculate total price quote without modifying the database."
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4 - Confirm Booking",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"Yadu K\",\n    \"passenger_phone\": \"9876543210\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings"
+							]
+						},
+						"description": "Step 4: Lock seats, create passenger bookings, and return booking_reference UUID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking by Reference",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/{{booking_reference}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings",
+								"{{booking_reference}}"
+							]
+						},
+						"description": "Fetch booking confirmation and seat reservation details using booking_reference."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Booking",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/{{booking_reference}}/cancel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings",
+								"{{booking_reference}}",
+								"cancel"
+							]
+						},
+						"description": "Cancel all seat reservations under a booking_reference and restore available seat count."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

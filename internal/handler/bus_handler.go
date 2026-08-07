@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -13,7 +12,6 @@ import (
 )
 
 // BusHandler handles HTTP requests for bus operations.
-// It depends on the domain.BusService interface — never on a concrete type.
 type BusHandler struct {
 	svc domain.BusService
 }
@@ -37,29 +35,21 @@ func (h *BusHandler) RegisterRoutes(rg *gin.RouterGroup) {
 func (h *BusHandler) Create(c *gin.Context) {
 	var req models.CreateBusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid request",
-			"details": err.Error(),
-		})
+		RespondBadRequest(c, "invalid request", err.Error())
 		return
 	}
 
 	bus, err := h.svc.CreateBus(c.Request.Context(), req.ToDomainInput())
 	if err != nil {
-		switch {
-		case errors.Is(err, apperrors.ErrDuplicateKey):
-			c.JSON(http.StatusConflict, gin.H{
-				"error": "a bus with this number plate already exists",
-			})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "failed to register bus",
-			})
+		if errors.Is(err, apperrors.ErrDuplicateKey) {
+			RespondError(c, http.StatusConflict, "a bus with this number plate already exists")
+			return
 		}
+		HandleError(c, err, "failed to register bus")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	RespondJSON(c, http.StatusCreated, gin.H{
 		"message": "bus registered successfully",
 		"data":    models.NewBusResponse(bus),
 	})
@@ -67,45 +57,28 @@ func (h *BusHandler) Create(c *gin.Context) {
 
 // GetByID handles GET /api/v1/buses/:id
 func (h *BusHandler) GetByID(c *gin.Context) {
-	id := c.Param("id")
-
-	bus, err := h.svc.GetBus(c.Request.Context(), id)
+	bus, err := h.svc.GetBus(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		switch {
-		case errors.Is(err, apperrors.ErrNotFound):
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "bus not found",
-			})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "failed to fetch bus",
-			})
+		if errors.Is(err, apperrors.ErrNotFound) {
+			RespondError(c, http.StatusNotFound, "bus not found")
+			return
 		}
+		HandleError(c, err, "failed to fetch bus")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	RespondJSON(c, http.StatusOK, gin.H{
 		"data": models.NewBusResponse(bus),
 	})
 }
 
 // List handles GET /api/v1/buses?limit=20&offset=0
 func (h *BusHandler) List(c *gin.Context) {
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	if err != nil || limit < 1 || limit > 100 {
-		limit = 20
-	}
-
-	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if err != nil || offset < 0 {
-		offset = 0
-	}
+	limit, offset := ParsePagination(c)
 
 	buses, err := h.svc.ListBuses(c.Request.Context(), limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to list buses",
-		})
+		HandleError(c, err, "failed to list buses")
 		return
 	}
 
@@ -114,7 +87,7 @@ func (h *BusHandler) List(c *gin.Context) {
 		response = append(response, models.NewBusResponse(b))
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	RespondJSON(c, http.StatusOK, gin.H{
 		"data":   response,
 		"limit":  limit,
 		"offset": offset,
