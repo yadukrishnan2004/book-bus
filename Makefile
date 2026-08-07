@@ -1,7 +1,7 @@
 DB_DSN=postgres://postgres:postgrespassword@localhost:5433/bus_booking?sslmode=disable
 MIGRATE=./bin/migrate
 
-.PHONY: run build db-up db-down migrate-up migrate-down migrate-status clean
+.PHONY: run build db-up db-down db-reset migrate-up migrate-down migrate-status clean kill-port
 
 ## run: start the API server (connects to local Postgres on 5433)
 run:
@@ -15,9 +15,17 @@ build:
 db-up:
 	docker compose up -d postgres
 
-## db-down: stop all containers
+## db-down: stop all containers (data is preserved)
 db-down:
 	docker compose down
+
+## db-reset: stop containers AND delete all data (clean slate)
+db-reset:
+	docker compose down -v
+
+## kill-port: free port 8080 if something is stuck
+kill-port:
+	@lsof -i :8080 -t | xargs kill -9 2>/dev/null || echo "port 8080 is already free"
 
 ## migrate-up: apply all pending migrations
 migrate-up:

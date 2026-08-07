@@ -55,7 +55,7 @@ func main() {
 	v1 := g.Group("/api/v1")
 	busHandler.RegisterRoutes(v1)
 
-	log.Printf("🚀 Server starting on port %s", cfg.Port)
+	log.Printf("Server starting on port %s", cfg.Port)
 	if err := g.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
