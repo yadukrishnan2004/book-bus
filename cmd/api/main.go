@@ -2,61 +2,47 @@ package main
 
 import (
 	"context"
-	"log"
-	"net/http"
-
-	"github.com/gin-gonic/gin"
+	"log/slog"
+	"os"
 
 	"book-bus/internal/config"
 	"book-bus/internal/db"
 	"book-bus/internal/handler"
+	"book-bus/internal/logger"
 	"book-bus/internal/repository"
+	"book-bus/internal/server"
+	"book-bus/internal/service"
 )
 
 func main() {
-	// Load configuration from environment variables
+	// 1. Init structured logger
+	logger.Init()
+
+	// 2. Load configuration
 	cfg := config.Load()
 
-	// Connect to the database
+	// 3. Connect to database
 	ctx := context.Background()
 	pool, err := db.New(ctx, cfg.DSN())
 	if err != nil {
-		log.Fatalf("could not connect to database: %v", err)
+		slog.Error("could not connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
-	log.Println("✅ Connected to PostgreSQL successfully")
+	slog.Info("connected to PostgreSQL", "host", cfg.DBHost, "db", cfg.DBName)
 
-	// --- Repositories ---
-	busRepo := repository.NewBusRepository(pool)
+	// 4. Build layers (innermost → outermost)
+	busRepo    := repository.NewBusRepository(pool)
+	busSvc     := service.NewBusService(busRepo)
+	busHandler := handler.NewBusHandler(busSvc)
 
-	// --- Handlers ---
-	busHandler := handler.NewBusHandler(busRepo)
+	// 5. Start server
+	srv := server.New(pool, busHandler)
 
-	// --- Router ---
-	g := gin.Default()
-
-	// Health check
-	g.GET("/health", func(c *gin.Context) {
-		if err := pool.Ping(c.Request.Context()); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status":  "error",
-				"message": "database unreachable",
-			})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"message": "Bus Ticket Booking API is running!",
-		})
-	})
-
-	// API v1 routes
-	v1 := g.Group("/api/v1")
-	busHandler.RegisterRoutes(v1)
-
-	log.Printf("Server starting on port %s", cfg.Port)
-	if err := g.Run(":" + cfg.Port); err != nil {
-		log.Fatalf("server error: %v", err)
+	slog.Info("server starting", "port", cfg.Port)
+	if err := srv.Run(cfg.Port); err != nil {
+		slog.Error("server error", "error", err)
+		os.Exit(1)
 	}
 }

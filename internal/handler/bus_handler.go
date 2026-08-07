@@ -6,20 +6,21 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 
+	"book-bus/internal/apperrors"
+	"book-bus/internal/domain"
 	"book-bus/internal/models"
-	"book-bus/internal/repository"
 )
 
-// BusHandler holds dependencies for bus-related HTTP handlers.
+// BusHandler handles HTTP requests for bus operations.
+// It depends on the domain.BusService interface — never on a concrete type.
 type BusHandler struct {
-	repo *repository.BusRepository
+	svc domain.BusService
 }
 
 // NewBusHandler creates a new BusHandler.
-func NewBusHandler(repo *repository.BusRepository) *BusHandler {
-	return &BusHandler{repo: repo}
+func NewBusHandler(svc domain.BusService) *BusHandler {
+	return &BusHandler{svc: svc}
 }
 
 // RegisterRoutes wires all bus routes onto the given router group.
@@ -32,9 +33,7 @@ func (h *BusHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	}
 }
 
-// Create godoc
-// POST /api/v1/buses
-// Registers a new bus in the system.
+// Create handles POST /api/v1/buses
 func (h *BusHandler) Create(c *gin.Context) {
 	var req models.CreateBusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -45,55 +44,52 @@ func (h *BusHandler) Create(c *gin.Context) {
 		return
 	}
 
-	bus, err := h.repo.Create(c.Request.Context(), req)
+	bus, err := h.svc.CreateBus(c.Request.Context(), req.ToDomainInput())
 	if err != nil {
-		// Unique constraint on number_plate
-		if isDuplicateKey(err) {
+		switch {
+		case errors.Is(err, apperrors.ErrDuplicateKey):
 			c.JSON(http.StatusConflict, gin.H{
 				"error": "a bus with this number plate already exists",
 			})
-			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to register bus",
+			})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to register bus",
-		})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "bus registered successfully",
-		"data":    toBusResponse(bus),
+		"data":    models.NewBusResponse(bus),
 	})
 }
 
-// GetByID godoc
-// GET /api/v1/buses/:id
-// Returns a single bus by its UUID.
+// GetByID handles GET /api/v1/buses/:id
 func (h *BusHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 
-	bus, err := h.repo.GetByID(c.Request.Context(), id)
+	bus, err := h.svc.GetBus(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		switch {
+		case errors.Is(err, apperrors.ErrNotFound):
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "bus not found",
 			})
-			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to fetch bus",
+			})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to fetch bus",
-		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": toBusResponse(bus),
+		"data": models.NewBusResponse(bus),
 	})
 }
 
-// List godoc
-// GET /api/v1/buses?limit=20&offset=0
-// Returns a paginated list of all buses.
+// List handles GET /api/v1/buses?limit=20&offset=0
 func (h *BusHandler) List(c *gin.Context) {
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	if err != nil || limit < 1 || limit > 100 {
@@ -105,7 +101,7 @@ func (h *BusHandler) List(c *gin.Context) {
 		offset = 0
 	}
 
-	buses, err := h.repo.List(c.Request.Context(), limit, offset)
+	buses, err := h.svc.ListBuses(c.Request.Context(), limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to list buses",
@@ -113,10 +109,9 @@ func (h *BusHandler) List(c *gin.Context) {
 		return
 	}
 
-	// Return empty array instead of null when no buses exist
 	response := make([]*models.BusResponse, 0, len(buses))
 	for _, b := range buses {
-		response = append(response, toBusResponse(b))
+		response = append(response, models.NewBusResponse(b))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -125,35 +120,4 @@ func (h *BusHandler) List(c *gin.Context) {
 		"offset": offset,
 		"count":  len(response),
 	})
-}
-
-// toBusResponse converts a Bus model to the API response shape.
-func toBusResponse(b *models.Bus) *models.BusResponse {
-	return &models.BusResponse{
-		ID:          b.ID,
-		Name:        b.Name,
-		NumberPlate: b.NumberPlate,
-		TotalSeats:  b.TotalSeats,
-		BusType:     b.BusType,
-		Description: b.Description,
-		IsActive:    b.IsActive,
-		CreatedAt:   b.CreatedAt,
-	}
-}
-
-// isDuplicateKey checks if the error is a Postgres unique constraint violation (code 23505).
-func isDuplicateKey(err error) bool {
-	return err != nil && (containsCode(err, "23505"))
-}
-
-func containsCode(err error, code string) bool {
-	return err != nil && len(err.Error()) > 0 &&
-		(func() bool {
-			type pgErr interface{ SQLState() string }
-			var pg pgErr
-			if errors.As(err, &pg) {
-				return pg.SQLState() == code
-			}
-			return false
-		})()
 }

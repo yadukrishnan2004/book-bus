@@ -2,38 +2,43 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"book-bus/internal/models"
+	"book-bus/internal/apperrors"
+	"book-bus/internal/domain"
 )
 
-// BusRepository handles all database operations for buses.
-type BusRepository struct {
+// busRepository is the PostgreSQL implementation of domain.BusRepository.
+type busRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewBusRepository creates a new BusRepository.
-func NewBusRepository(db *pgxpool.Pool) *BusRepository {
-	return &BusRepository{db: db}
+// NewBusRepository creates a new busRepository.
+// It returns the domain interface so callers stay decoupled from this package.
+func NewBusRepository(db *pgxpool.Pool) domain.BusRepository {
+	return &busRepository{db: db}
 }
 
-// Create inserts a new bus record and returns the created bus.
-func (r *BusRepository) Create(ctx context.Context, req models.CreateBusRequest) (*models.Bus, error) {
+// Create inserts a new bus record and returns the created entity.
+func (r *busRepository) Create(ctx context.Context, input domain.CreateBusInput) (*domain.Bus, error) {
 	query := `
 		INSERT INTO buses (name, number_plate, total_seats, bus_type, description, is_active)
 		VALUES ($1, $2, $3, $4, $5, true)
 		RETURNING id, name, number_plate, total_seats, bus_type, description, is_active, created_at, updated_at
 	`
 
-	bus := &models.Bus{}
+	bus := &domain.Bus{}
 	err := r.db.QueryRow(ctx, query,
-		req.Name,
-		req.NumberPlate,
-		req.TotalSeats,
-		req.BusType,
-		req.Description,
+		input.Name,
+		input.NumberPlate,
+		input.TotalSeats,
+		input.BusType,
+		input.Description,
 	).Scan(
 		&bus.ID,
 		&bus.Name,
@@ -46,21 +51,21 @@ func (r *BusRepository) Create(ctx context.Context, req models.CreateBusRequest)
 		&bus.UpdatedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("repository: create bus: %w", err)
+		return nil, mapError(err, "create bus")
 	}
 
 	return bus, nil
 }
 
 // GetByID fetches a single bus by its UUID.
-func (r *BusRepository) GetByID(ctx context.Context, id string) (*models.Bus, error) {
+func (r *busRepository) GetByID(ctx context.Context, id string) (*domain.Bus, error) {
 	query := `
 		SELECT id, name, number_plate, total_seats, bus_type, description, is_active, created_at, updated_at
 		FROM buses
 		WHERE id = $1
 	`
 
-	bus := &models.Bus{}
+	bus := &domain.Bus{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&bus.ID,
 		&bus.Name,
@@ -73,14 +78,14 @@ func (r *BusRepository) GetByID(ctx context.Context, id string) (*models.Bus, er
 		&bus.UpdatedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("repository: get bus by id: %w", err)
+		return nil, mapError(err, "get bus by id")
 	}
 
 	return bus, nil
 }
 
-// List returns all buses with optional pagination.
-func (r *BusRepository) List(ctx context.Context, limit, offset int) ([]*models.Bus, error) {
+// List returns buses ordered by creation date with pagination.
+func (r *busRepository) List(ctx context.Context, limit, offset int) ([]*domain.Bus, error) {
 	query := `
 		SELECT id, name, number_plate, total_seats, bus_type, description, is_active, created_at, updated_at
 		FROM buses
@@ -94,9 +99,9 @@ func (r *BusRepository) List(ctx context.Context, limit, offset int) ([]*models.
 	}
 	defer rows.Close()
 
-	var buses []*models.Bus
+	var buses []*domain.Bus
 	for rows.Next() {
-		bus := &models.Bus{}
+		bus := &domain.Bus{}
 		if err := rows.Scan(
 			&bus.ID,
 			&bus.Name,
@@ -114,4 +119,25 @@ func (r *BusRepository) List(ctx context.Context, limit, offset int) ([]*models.
 	}
 
 	return buses, rows.Err()
+}
+
+// mapError translates raw DB errors into domain-level sentinel errors.
+// This ensures pgx never leaks past the repository boundary.
+func mapError(err error, op string) error {
+	if err == nil {
+		return nil
+	}
+
+	// Row not found
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperrors.ErrNotFound
+	}
+
+	// Unique constraint violation (Postgres SQLSTATE 23505)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return apperrors.ErrDuplicateKey
+	}
+
+	return fmt.Errorf("repository: %s: %w", op, err)
 }
