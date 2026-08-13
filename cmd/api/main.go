@@ -17,6 +17,7 @@ import (
 	"book-bus/internal/repository"
 	"book-bus/internal/server"
 	"book-bus/internal/service"
+	"book-bus/migrations"
 )
 
 func main() {
@@ -38,6 +39,12 @@ func main() {
 	defer pool.Close()
 
 	slog.Info("connected to PostgreSQL", "host", cfg.DBHost, "db", cfg.DBName)
+
+	// 4. Run database migrations automatically
+	if err := db.RunMigrations(cfg.DSN(), migrations.FS); err != nil {
+		slog.Error("could not run database migrations", "error", err)
+		os.Exit(1)
+	}
 
 	// 4. Build layers (innermost → outermost)
 	userRepo := repository.NewUserRepository(pool)
