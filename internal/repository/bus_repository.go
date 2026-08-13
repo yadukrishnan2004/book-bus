@@ -2,16 +2,13 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"book-bus/internal/apperrors"
 	"book-bus/internal/domain"
 )
+
 
 // busRepository is the PostgreSQL implementation of domain.BusRepository.
 type busRepository struct {
@@ -51,7 +48,7 @@ func (r *busRepository) Create(ctx context.Context, input domain.CreateBusInput)
 		&bus.UpdatedAt,
 	)
 	if err != nil {
-		return nil, mapError(err, "create bus")
+		return nil, mapDBError(err, "create bus")
 	}
 
 	return bus, nil
@@ -78,7 +75,7 @@ func (r *busRepository) GetByID(ctx context.Context, id string) (*domain.Bus, er
 		&bus.UpdatedAt,
 	)
 	if err != nil {
-		return nil, mapError(err, "get bus by id")
+		return nil, mapDBError(err, "get bus by id")
 	}
 
 	return bus, nil
@@ -121,23 +118,4 @@ func (r *busRepository) List(ctx context.Context, limit, offset int) ([]*domain.
 	return buses, rows.Err()
 }
 
-// mapError translates raw DB errors into domain-level sentinel errors.
-// This ensures pgx never leaks past the repository boundary.
-func mapError(err error, op string) error {
-	if err == nil {
-		return nil
-	}
 
-	// Row not found
-	if errors.Is(err, pgx.ErrNoRows) {
-		return apperrors.ErrNotFound
-	}
-
-	// Unique constraint violation (Postgres SQLSTATE 23505)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return apperrors.ErrDuplicateKey
-	}
-
-	return fmt.Errorf("repository: %s: %w", op, err)
-}

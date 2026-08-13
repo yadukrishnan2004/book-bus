@@ -82,6 +82,7 @@ func (s *bookingService) PreviewBooking(ctx context.Context, input domain.Create
 	}, nil
 }
 
+
 // ConfirmBooking locks the seats and creates the booking inside a transaction.
 func (s *bookingService) ConfirmBooking(ctx context.Context, input domain.CreateBookingInput) ([]*domain.Booking, string, error) {
 	// Fetch schedule to get the price per seat
@@ -98,6 +99,28 @@ func (s *bookingService) ConfirmBooking(ctx context.Context, input domain.Create
 		if n < 1 || n > schedule.TotalSeats {
 			return nil, "", fmt.Errorf("seat number %d is out of range (bus has %d seats)", n, schedule.TotalSeats)
 		}
+	}
+
+	// Fast pre-check: identify any already-taken seats before entering the
+	// transaction lock. This gives a richer error and avoids holding the lock
+	// when we already know the booking will fail. The authoritative check is
+	// still performed inside CreateMany within a FOR UPDATE transaction.
+	bookedSeats, err := s.bookingRepo.GetBookedSeats(ctx, input.ScheduleID)
+	if err != nil {
+		return nil, "", err
+	}
+	booked := make(map[int]bool, len(bookedSeats))
+	for _, n := range bookedSeats {
+		booked[n] = true
+	}
+	var conflicting []int
+	for _, n := range input.SeatNumbers {
+		if booked[n] {
+			conflicting = append(conflicting, n)
+		}
+	}
+	if len(conflicting) > 0 {
+		return nil, "", apperrors.NewSeatsConflictError(conflicting)
 	}
 
 	reference := uuid.New().String()
@@ -120,6 +143,7 @@ func (s *bookingService) ConfirmBooking(ctx context.Context, input domain.Create
 	)
 	return bookings, reference, nil
 }
+
 
 // GetBooking retrieves all seat rows under a booking reference.
 func (s *bookingService) GetBooking(ctx context.Context, reference string) ([]*domain.Booking, error) {

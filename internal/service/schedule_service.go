@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"book-bus/internal/domain"
 )
@@ -17,9 +20,15 @@ func NewScheduleService(repo domain.ScheduleRepository) domain.ScheduleService {
 }
 
 func (s *scheduleService) CreateSchedule(ctx context.Context, input domain.CreateScheduleInput) (*domain.Schedule, error) {
-	if input.ArrivalTime.Before(input.DepartureTime) {
-		return nil, domain.ErrArrivalBeforeDeparture
+	// Bug 3 fix: reject past departure times.
+	if input.DepartureTime.Before(time.Now()) {
+		return nil, domain.ErrDepartureInPast
 	}
+	// Bug 3 fix: reject zero-duration trips (arrival == departure).
+	if !input.ArrivalTime.After(input.DepartureTime) {
+		return nil, domain.ErrZeroDuration
+	}
+
 	schedule, err := s.repo.Create(ctx, input)
 	if err != nil {
 		slog.Error("service: create schedule failed", "bus_id", input.BusID, "error", err)
@@ -38,7 +47,15 @@ func (s *scheduleService) GetSchedule(ctx context.Context, id string) (*domain.S
 	return schedule, nil
 }
 
+// ListSchedules returns schedules with optional filtering.
+// Bug 5 fix: validates the date query param format before hitting the DB to prevent
+// PostgreSQL SQLSTATE 22007 (invalid_datetime_format) from surfacing as a 500 error.
 func (s *scheduleService) ListSchedules(ctx context.Context, filter domain.ScheduleFilter, limit, offset int) ([]*domain.Schedule, error) {
+	if filter.Date != "" {
+		if _, err := time.Parse("2006-01-02", strings.TrimSpace(filter.Date)); err != nil {
+			return nil, fmt.Errorf("invalid date format — use YYYY-MM-DD: %w", domain.ErrInvalidDateFormat)
+		}
+	}
 	schedules, err := s.repo.List(ctx, filter, limit, offset)
 	if err != nil {
 		slog.Error("service: list schedules failed", "error", err)
@@ -65,4 +82,3 @@ func (s *scheduleService) UpdateStatus(ctx context.Context, id string, status do
 	slog.Info("schedule status updated", "id", id, "new_status", status, "affected_bookings", affected)
 	return schedule, affected, nil
 }
-

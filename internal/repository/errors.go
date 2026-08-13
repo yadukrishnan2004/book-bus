@@ -19,8 +19,14 @@ func mapDBError(err error, op string) error {
 		return apperrors.ErrNotFound
 	}
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return apperrors.ErrDuplicateKey
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505": // unique_violation
+			return apperrors.ErrDuplicateKey
+		case "23503": // foreign_key_violation
+			return apperrors.ErrInvalidReference
+		}
 	}
 	return err
 }
+

@@ -7,26 +7,24 @@ import (
 )
 
 // RegisterRequest is the JSON payload for user registration.
+// The role field is intentionally absent — public registration always creates
+// a "passenger" account. Admin accounts must be seeded directly in the DB.
 type RegisterRequest struct {
 	Name     string `json:"name"     binding:"required,min=2,max=255"`
 	Email    string `json:"email"    binding:"required,email,max=255"`
 	Phone    string `json:"phone"    binding:"required,min=7,max=20"`
 	Password string `json:"password" binding:"required,min=6,max=100"`
-	Role     string `json:"role"     binding:"omitempty,oneof=passenger admin"`
 }
 
 // ToDomainInput converts RegisterRequest to domain.RegisterInput.
+// Role is always set to passenger — callers cannot self-assign admin.
 func (r RegisterRequest) ToDomainInput() domain.RegisterInput {
-	role := domain.UserRolePassenger
-	if r.Role == string(domain.UserRoleAdmin) {
-		role = domain.UserRoleAdmin
-	}
 	return domain.RegisterInput{
 		Name:     r.Name,
 		Email:    r.Email,
 		Phone:    r.Phone,
 		Password: r.Password,
-		Role:     role,
+		Role:     domain.UserRolePassenger,
 	}
 }
 

@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "b1a2c3d4-e5f6-7890-abcd-ef1234567890",
 		"name": "Book Bus API",
-		"description": "Complete Postman Collection for the Bus Ticket Booking System API (Clean Architecture Go Backend). Includes JWT Authentication, RBAC protection, health check, bus registration, routes, schedules, seat map, preview, booking confirmation, user bookings, trip status updates, and cancellation.",
+		"description": "Complete Postman Collection for the Bus Ticket Booking System API.\n\n## Setup\n1. Import this collection\n2. Run **Register Passenger** → copy the token into `auth_token` collection variable\n3. Login as admin (seeded in DB) → copy token into `admin_token`\n4. Follow the numbered booking steps: Browse → Seat Map → Preview → Confirm\n\n## Changes from Bug Fixes\n- Public registration no longer accepts `role` field — all new accounts are passengers\n- Admin accounts must be seeded directly in the database\n- Booking conflict errors now return `conflicting_seats` array\n- Get/Cancel Booking by reference requires auth if the booking was made by a logged-in user\n- Schedule creation rejects past dates and zero-duration trips\n- Route creation rejects identical origin and destination\n- Invalid `?date=` filter now returns 400 instead of 500",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -14,32 +14,38 @@
 		{
 			"key": "auth_token",
 			"value": "",
-			"type": "string"
+			"type": "string",
+			"description": "Passenger JWT token — auto-set by Login User test script"
 		},
 		{
 			"key": "admin_token",
 			"value": "",
-			"type": "string"
+			"type": "string",
+			"description": "Admin JWT token — auto-set by Login Admin test script"
 		},
 		{
 			"key": "bus_id",
 			"value": "",
-			"type": "string"
+			"type": "string",
+			"description": "Auto-set by Register Bus test script"
 		},
 		{
 			"key": "route_id",
 			"value": "",
-			"type": "string"
+			"type": "string",
+			"description": "Auto-set by Create Route test script"
 		},
 		{
 			"key": "schedule_id",
 			"value": "",
-			"type": "string"
+			"type": "string",
+			"description": "Auto-set by Create Schedule test script"
 		},
 		{
 			"key": "booking_reference",
 			"value": "",
-			"type": "string"
+			"type": "string",
+			"description": "Auto-set by Confirm Booking test script"
 		}
 	],
 	"item": [
@@ -53,14 +59,10 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/health",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"health"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["health"]
 						},
-						"description": "Check API and database connectivity status."
+						"description": "Check API and database connectivity status.\n\nExpected: 200 {\"status\": \"ok\"}"
 					},
 					"response": []
 				}
@@ -70,7 +72,22 @@
 			"name": "Authentication",
 			"item": [
 				{
-					"name": "Register Passenger User",
+					"name": "Register Passenger",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('auth_token', body.data.token);",
+									"    console.log('auth_token set:', body.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -81,26 +98,24 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"John Passenger\",\n    \"email\": \"passenger@example.com\",\n    \"phone\": \"9876543210\",\n    \"password\": \"password123\",\n    \"role\": \"passenger\"\n}"
+							"raw": "{\n    \"name\": \"John Passenger\",\n    \"email\": \"passenger@example.com\",\n    \"phone\": \"9876543210\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/register",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"register"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "register"]
 						},
-						"description": "Register a new passenger account. Returns user details and JWT bearer token."
+						"description": "Register a new **passenger** account.\n\n⚠️ The `role` field has been removed — public registration always creates a passenger. The test script automatically saves the returned token to the `auth_token` collection variable.\n\nExpected: 201 Created"
 					},
 					"response": []
 				},
 				{
-					"name": "Register Admin User",
+					"name": "Register Passenger (Attempt role=admin — Should Fail)",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -111,26 +126,39 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"System Admin\",\n    \"email\": \"admin@example.com\",\n    \"phone\": \"9123456789\",\n    \"password\": \"adminpassword123\",\n    \"role\": \"admin\"\n}"
+							"raw": "{\n    \"name\": \"Evil Admin\",\n    \"email\": \"evil@example.com\",\n    \"phone\": \"9999999999\",\n    \"password\": \"hacker123\",\n    \"role\": \"admin\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/register",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"register"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "register"]
 						},
-						"description": "Register an admin user account capable of managing buses, routes, schedules, and trip statuses."
+						"description": "Demonstrates the privilege escalation fix (Bug 1).\n\nEven though the body contains `\"role\": \"admin\"`, the server ignores it and always registers the user as `passenger`. The `role` field is stripped at the model layer.\n\nExpected: 201 Created with `role: \"passenger\"` in response"
 					},
 					"response": []
 				},
 				{
 					"name": "Login User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('auth_token', body.data.token);",
+									"    console.log('auth_token set:', body.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -141,26 +169,39 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"passenger@example.com\",\n    \"password\": \"password123\"\n}"
+							"raw": "{\n    \"email\": \"passenger@example.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/login",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"login"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "login"]
 						},
-						"description": "Authenticate user credentials and receive JWT bearer token."
+						"description": "Authenticate as passenger and receive JWT token.\n\nThe test script automatically saves the token to the `auth_token` collection variable.\n\nExpected: 200 OK"
 					},
 					"response": []
 				},
 				{
 					"name": "Login Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('admin_token', body.data.token);",
+									"    console.log('admin_token set:', body.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -171,21 +212,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"adminpassword123\"\n}"
+							"raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"adminpassword123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/login",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"login"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "login"]
 						},
-						"description": "Authenticate admin user and receive JWT bearer token."
+						"description": "Authenticate as admin (must be seeded in DB — cannot self-register as admin).\n\nThe test script automatically saves the token to the `admin_token` collection variable.\n\nExpected: 200 OK"
 					},
 					"response": []
 				},
@@ -201,17 +240,10 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/me",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"me"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "me"]
 						},
-						"description": "Get current user profile using JWT token."
+						"description": "Get the authenticated user's profile.\n\nExpected: 200 OK with user details (no password in response)"
 					},
 					"response": []
 				}
@@ -222,6 +254,21 @@
 			"item": [
 				{
 					"name": "Register Bus",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('bus_id', body.data.id);",
+									"    console.log('bus_id set:', body.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -236,20 +283,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Kerala Express\",\n    \"number_plate\": \"KL-01-AB-1234\",\n    \"total_seats\": 45,\n    \"bus_type\": \"ac\",\n    \"description\": \"Comfortable AC bus for long distance travel\"\n}"
+							"raw": "{\n    \"name\": \"Kerala Express\",\n    \"number_plate\": \"KL-01-AB-1234\",\n    \"total_seats\": 45,\n    \"bus_type\": \"ac\",\n    \"description\": \"Comfortable AC bus for long distance travel\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/buses",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"buses"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "buses"]
 						},
-						"description": "Register a new bus (Admin token required). Allowed bus_type values: standard, sleeper, ac, luxury, mini."
+						"description": "Register a new bus (Admin token required).\n\nAllowed `bus_type` values: `standard`, `sleeper`, `ac`, `luxury`, `mini`\n\nThe test script automatically saves the returned `id` to the `bus_id` collection variable.\n\nExpected: 201 Created"
 					},
 					"response": []
 				},
@@ -265,26 +311,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/buses?limit=20&offset=0",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"buses"
-							],
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "buses"],
 							"query": [
-								{
-									"key": "limit",
-									"value": "20"
-								},
-								{
-									"key": "offset",
-									"value": "0"
-								}
+								{"key": "limit", "value": "20"},
+								{"key": "offset", "value": "0"}
 							]
 						},
-						"description": "List all registered buses with optional limit and offset pagination (Admin token required)."
+						"description": "List all registered buses with pagination (Admin token required).\n\nExpected: 200 OK with array of buses"
 					},
 					"response": []
 				},
@@ -300,17 +334,10 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/buses/{{bus_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"buses",
-								"{{bus_id}}"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "buses", "{{bus_id}}"]
 						},
-						"description": "Fetch details of a single bus by its UUID (Admin token required)."
+						"description": "Fetch a single bus by UUID (Admin token required).\n\nExpected: 200 OK"
 					},
 					"response": []
 				}
@@ -321,6 +348,21 @@
 			"item": [
 				{
 					"name": "Create Route",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('route_id', body.data.id);",
+									"    console.log('route_id set:', body.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -335,20 +377,51 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"origin\": \"Kochi\",\n    \"destination\": \"Bangalore\",\n    \"distance_km\": 550.5\n}"
+							"raw": "{\n    \"origin\": \"Kochi\",\n    \"destination\": \"Bangalore\",\n    \"distance_km\": 550.5\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/routes",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"routes"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "routes"]
 						},
-						"description": "Create a new route with origin, destination, and distance in km (Admin token required)."
+						"description": "Create a new route (Admin token required).\n\nThe test script automatically saves the returned `id` to the `route_id` collection variable.\n\nExpected: 201 Created"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Route (Same Origin & Destination — Should Return 400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"origin\": \"Kochi\",\n    \"destination\": \"kochi\",\n    \"distance_km\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/routes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "routes"]
+						},
+						"description": "Demonstrates Bug 4 fix — origin and destination cannot be the same (case-insensitive).\n\nExpected: 400 Bad Request\n```json\n{\"error\": \"origin and destination cannot be the same\"}\n```"
 					},
 					"response": []
 				},
@@ -364,16 +437,10 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/routes",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"routes"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "routes"]
 						},
-						"description": "Fetch a list of all available travel routes (Admin token required)."
+						"description": "Fetch all available routes (Admin token required).\n\nExpected: 200 OK"
 					},
 					"response": []
 				}
@@ -384,6 +451,21 @@
 			"item": [
 				{
 					"name": "Create Schedule (Admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('schedule_id', body.data.id);",
+									"    console.log('schedule_id set:', body.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -398,76 +480,165 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"bus_id\": \"{{bus_id}}\",\n    \"route_id\": \"{{route_id}}\",\n    \"departure_time\": \"2026-08-10T21:00:00Z\",\n    \"arrival_time\": \"2026-08-11T06:00:00Z\",\n    \"price\": 850.0\n}"
+							"raw": "{\n    \"bus_id\": \"{{bus_id}}\",\n    \"route_id\": \"{{route_id}}\",\n    \"departure_time\": \"2027-01-15T21:00:00Z\",\n    \"arrival_time\": \"2027-01-16T06:00:00Z\",\n    \"price\": 850.0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/schedules",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"schedules"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules"]
 						},
-						"description": "Schedule a bus on a route with departure time, arrival time, and price (Admin token required)."
+						"description": "Schedule a bus on a route (Admin token required).\n\n⚠️ Departure time must be in the **future** (Bug 3 fix). Arrival must be strictly **after** departure (zero-duration trips rejected).\n\nThe test script automatically saves the returned `id` to the `schedule_id` collection variable.\n\nExpected: 201 Created"
 					},
 					"response": []
 				},
 				{
-					"name": "Step 1 - Browse Schedules (Public)",
+					"name": "Create Schedule (Past Date — Should Return 400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"bus_id\": \"{{bus_id}}\",\n    \"route_id\": \"{{route_id}}\",\n    \"departure_time\": \"2020-01-01T10:00:00Z\",\n    \"arrival_time\": \"2020-01-01T18:00:00Z\",\n    \"price\": 500.0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules"]
+						},
+						"description": "Demonstrates Bug 3 fix — departure time cannot be in the past.\n\nExpected: 400 Bad Request\n```json\n{\"error\": \"departure time cannot be in the past\"}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Schedule (Zero Duration — Should Return 400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"bus_id\": \"{{bus_id}}\",\n    \"route_id\": \"{{route_id}}\",\n    \"departure_time\": \"2027-01-15T10:00:00Z\",\n    \"arrival_time\": \"2027-01-15T10:00:00Z\",\n    \"price\": 500.0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules"]
+						},
+						"description": "Demonstrates Bug 3 fix — arrival time must be strictly after departure (no zero-duration trips).\n\nExpected: 400 Bad Request\n```json\n{\"error\": \"arrival time must be after departure time (zero-duration trips are not allowed)\"}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Schedule (Invalid bus_id — Should Return 400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"bus_id\": \"00000000-0000-0000-0000-000000000000\",\n    \"route_id\": \"{{route_id}}\",\n    \"departure_time\": \"2027-01-15T21:00:00Z\",\n    \"arrival_time\": \"2027-01-16T06:00:00Z\",\n    \"price\": 850.0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules"]
+						},
+						"description": "Demonstrates Bug 2 fix — using a non-existent `bus_id` now returns 400 instead of 500.\n\nExpected: 400 Bad Request\n```json\n{\"error\": \"referenced resource does not exist (check bus_id or route_id)\"}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Step 1 — Browse Schedules (Public)",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/api/v1/schedules?origin=Kochi&destination=Bangalore&date=2026-08-10",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"schedules"
-							],
+							"raw": "{{base_url}}/api/v1/schedules?origin=Kochi&destination=Bangalore&date=2027-01-15",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules"],
 							"query": [
-								{
-									"key": "origin",
-									"value": "Kochi"
-								},
-								{
-									"key": "destination",
-									"value": "Bangalore"
-								},
-								{
-									"key": "date",
-									"value": "2026-08-10"
-								}
+								{"key": "origin", "value": "Kochi"},
+								{"key": "destination", "value": "Bangalore"},
+								{"key": "date", "value": "2027-01-15"}
 							]
 						},
-						"description": "Step 1: Search schedules filtered by origin, destination, and departure date."
+						"description": "**Step 1 of booking flow** — search available schedules filtered by origin, destination, and date (YYYY-MM-DD).\n\nAll params are optional. Results are ordered by departure time ascending.\n\nExpected: 200 OK"
 					},
 					"response": []
 				},
 				{
-					"name": "Step 2 - Get Seat Map (Public)",
+					"name": "Browse Schedules (Invalid Date — Should Return 400)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/schedules?date=not-a-date",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules"],
+							"query": [
+								{"key": "date", "value": "not-a-date"}
+							]
+						},
+						"description": "Demonstrates Bug 5 fix — invalid date format now returns 400 instead of a 500 PostgreSQL parse error.\n\nExpected: 400 Bad Request\n```json\n{\"error\": \"invalid date format — use YYYY-MM-DD\"}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2 — Get Seat Map (Public)",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/schedules/{{schedule_id}}/seats",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"schedules",
-								"{{schedule_id}}",
-								"seats"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules", "{{schedule_id}}", "seats"]
 						},
-						"description": "Step 2: Get real-time seat map showing available and booked seats."
+						"description": "**Step 2 of booking flow** — get a real-time seat map showing which seats are available and which are taken.\n\nExpected: 200 OK with `seats` array (each seat has `number` and `is_available`)"
 					},
 					"response": []
 				},
@@ -478,17 +649,10 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/schedules/{{schedule_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"schedules",
-								"{{schedule_id}}"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules", "{{schedule_id}}"]
 						},
-						"description": "Fetch details of a single schedule."
+						"description": "Fetch full details of a single schedule including embedded bus and route info.\n\nExpected: 200 OK"
 					},
 					"response": []
 				},
@@ -508,22 +672,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"status\": \"completed\"\n}"
+							"raw": "{\n    \"status\": \"completed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/schedules/{{schedule_id}}/status",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"schedules",
-								"{{schedule_id}}",
-								"status"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "schedules", "{{schedule_id}}", "status"]
 						},
-						"description": "Update trip status (ongoing, completed, cancelled). Marking completed or cancelled automatically cascades to passenger bookings (Admin token required)."
+						"description": "Update trip status (Admin token required).\n\nAllowed values: `ongoing`, `completed`, `cancelled`\n\nSetting `completed` or `cancelled` automatically cascades to all passenger bookings for this schedule.\n\nExpected: 200 OK with `affected_bookings` count"
 					},
 					"response": []
 				}
@@ -533,7 +694,7 @@
 			"name": "Bookings",
 			"item": [
 				{
-					"name": "Step 3 - Preview Booking",
+					"name": "Step 3 — Preview Booking",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -544,31 +705,44 @@
 							{
 								"key": "Authorization",
 								"value": "Bearer {{auth_token}}",
-								"description": "Optional Authorization header for logged in user"
+								"description": "Optional — binds booking to user account if provided"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"John Passenger\",\n    \"passenger_phone\": \"9876543210\"\n}"
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"John Passenger\",\n    \"passenger_phone\": \"9876543210\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/bookings/preview",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"bookings",
-								"preview"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings", "preview"]
 						},
-						"description": "Step 3: Validate selected seats and calculate total price quote without modifying database."
+						"description": "**Step 3 of booking flow** — validate selected seats and calculate total price.\n\nNo database writes. Returns:\n- `available`: true/false\n- `unavailable_seats`: list of already-taken seat numbers\n- `price_per_seat` and `total_price`\n\nExpected: 200 OK"
 					},
 					"response": []
 				},
 				{
-					"name": "Step 4 - Confirm Booking",
+					"name": "Step 4 — Confirm Booking (Authenticated)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('booking_reference', body.data.booking_reference);",
+									"    console.log('booking_reference set:', body.data.booking_reference);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -579,25 +753,95 @@
 							{
 								"key": "Authorization",
 								"value": "Bearer {{auth_token}}",
-								"description": "Optional Authorization header (binds user_id to reservation if provided)"
+								"description": "Providing this links the booking to the user account. Only this user (or admin) can then view/cancel it."
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"John Passenger\",\n    \"passenger_phone\": \"9876543210\"\n}"
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"John Passenger\",\n    \"passenger_phone\": \"9876543210\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/bookings",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"bookings"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings"]
 						},
-						"description": "Step 4: Lock seats, create passenger bookings, and return booking_reference UUID. If Authorization header is provided, links reservation to user account."
+						"description": "**Step 4 of booking flow** — lock seats and create confirmed booking.\n\nReturns `booking_reference` UUID used for all subsequent operations.\n\nIf `Authorization` header is provided, the booking is linked to that user — only they (or an admin) can then view or cancel it (Bug 6 fix).\n\nThe test script automatically saves `booking_reference` to the collection variable.\n\nExpected: 201 Created"
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4 — Confirm Booking (Guest / No Auth)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('booking_reference', body.data.booking_reference);",
+									"    console.log('booking_reference (guest) set:', body.data.booking_reference);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [10, 11],\n    \"passenger_name\": \"Guest User\",\n    \"passenger_phone\": \"9876500000\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings"]
+						},
+						"description": "Guest booking — no Authorization header.\n\nGuest bookings are **not linked to any user account**, so anyone with the `booking_reference` can view or cancel them.\n\nExpected: 201 Created"
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Booking (Seat Conflict — Should Return 409)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"Another Passenger\",\n    \"passenger_phone\": \"1234567890\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings"]
+						},
+						"description": "Attempt to book seats 5 and 6 which were already reserved in Step 4.\n\nDemonstrates the seat conflict fix — response now includes `conflicting_seats` array.\n\nExpected: 409 Conflict\n```json\n{\n  \"error\": \"one or more selected seats are not available\",\n  \"conflicting_seats\": [5, 6]\n}\n```"
 					},
 					"response": []
 				},
@@ -613,60 +857,97 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/bookings/my-bookings",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"bookings",
-								"my-bookings"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings", "my-bookings"]
 						},
-						"description": "Retrieve all booking reservations associated with the authenticated passenger account."
+						"description": "Retrieve all bookings linked to the authenticated user account.\n\nRequires JWT token. Returns bookings grouped by `booking_reference`.\n\nExpected: 200 OK"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Booking by Reference",
+					"name": "Get Booking by Reference (Owner)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"description": "Required if the booking was made by an authenticated user (Bug 6 fix)"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/{{booking_reference}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings", "{{booking_reference}}"]
+						},
+						"description": "Fetch booking details by reference UUID.\n\n**Ownership rules (Bug 6 fix):**\n- Guest bookings (no user_id): public, no auth required\n- User bookings: only the owner or an admin can view\n\nExpected: 200 OK (if authorized)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking by Reference (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/{{booking_reference}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings", "{{booking_reference}}"]
+						},
+						"description": "Admins can view any booking regardless of owner.\n\nExpected: 200 OK"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking by Reference (No Auth — Should Return 403 for User Bookings)",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/bookings/{{booking_reference}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"bookings",
-								"{{booking_reference}}"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings", "{{booking_reference}}"]
 						},
-						"description": "Fetch booking confirmation and seat reservation details using booking_reference."
+						"description": "Demonstrates Bug 6 fix — accessing a user-owned booking without auth returns 403.\n\nFor guest bookings (no user_id) this will still return 200.\n\nExpected for user-owned bookings: 403 Forbidden\n```json\n{\"error\": \"you do not have permission to view this booking\"}\n```"
 					},
 					"response": []
 				},
 				{
-					"name": "Cancel Booking",
+					"name": "Cancel Booking (Owner)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"description": "Required if booking was made by an authenticated user (Bug 6 fix)"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/{{booking_reference}}/cancel",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings", "{{booking_reference}}", "cancel"]
+						},
+						"description": "Cancel all seats under a booking reference and restore available seat count.\n\n**Ownership rules (Bug 6 fix):**\n- Guest bookings: anyone with reference can cancel\n- User bookings: only the owner or an admin can cancel\n\nExpected: 200 OK\n```json\n{\"message\": \"booking cancelled successfully\"}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Booking (No Auth — Should Return 403 for User Bookings)",
 					"request": {
 						"method": "POST",
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/bookings/{{booking_reference}}/cancel",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"bookings",
-								"{{booking_reference}}",
-								"cancel"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "bookings", "{{booking_reference}}", "cancel"]
 						},
-						"description": "Cancel all seat reservations under a booking_reference and restore available seat count."
+						"description": "Demonstrates Bug 6 fix — cancelling a user-owned booking without auth returns 403.\n\nExpected for user-owned bookings: 403 Forbidden\n```json\n{\"error\": \"you do not have permission to cancel this booking\"}\n```"
 					},
 					"response": []
 				}

@@ -130,6 +130,13 @@ func (h *BookingHandler) GetByReference(c *gin.Context) {
 		return
 	}
 
+	// Bug 6 fix: if the booking belongs to a registered user, ensure only that
+	// user or an admin can view it. Guest bookings (no user_id) are public.
+	if err := enforceBookingOwnership(c, bookings[0].UserID); err != nil {
+		RespondError(c, http.StatusForbidden, "you do not have permission to view this booking")
+		return
+	}
+
 	RespondJSON(c, http.StatusOK, gin.H{"data": models.NewBookingConfirmResponse(bookings, ref)})
 }
 
@@ -137,8 +144,24 @@ func (h *BookingHandler) GetByReference(c *gin.Context) {
 func (h *BookingHandler) Cancel(c *gin.Context) {
 	ref := c.Param("reference")
 
-	err := h.svc.CancelBooking(c.Request.Context(), ref)
+	// Fetch the booking first so we can check ownership before mutating state.
+	bookings, err := h.svc.GetBooking(c.Request.Context(), ref)
 	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			RespondError(c, http.StatusNotFound, "booking not found")
+			return
+		}
+		HandleError(c, err, "failed to fetch booking for cancellation")
+		return
+	}
+
+	// Bug 6 fix: enforce ownership before allowing cancellation.
+	if err := enforceBookingOwnership(c, bookings[0].UserID); err != nil {
+		RespondError(c, http.StatusForbidden, "you do not have permission to cancel this booking")
+		return
+	}
+
+	if err := h.svc.CancelBooking(c.Request.Context(), ref); err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			RespondError(c, http.StatusNotFound, "booking not found")
 			return
@@ -149,3 +172,28 @@ func (h *BookingHandler) Cancel(c *gin.Context) {
 
 	RespondJSON(c, http.StatusOK, gin.H{"message": "booking cancelled successfully"})
 }
+
+// enforceBookingOwnership returns an error if the requester is not the booking
+// owner and is not an admin. Returns nil for guest bookings (bookingUserID == nil).
+func enforceBookingOwnership(c *gin.Context, bookingUserID *string) error {
+	if bookingUserID == nil {
+		// Guest booking — no ownership to enforce.
+		return nil
+	}
+	requesterID, ok := middleware.GetUserID(c)
+	if !ok {
+		// No auth token provided for a user-owned booking.
+		return errors.New("unauthorized")
+	}
+	// Admins can access any booking.
+	if roleVal, exists := c.Get(middleware.CtxRoleKey); exists {
+		if role, ok := roleVal.(string); ok && role == "admin" {
+			return nil
+		}
+	}
+	if requesterID != *bookingUserID {
+		return errors.New("forbidden")
+	}
+	return nil
+}
+

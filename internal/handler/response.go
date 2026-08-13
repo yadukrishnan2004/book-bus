@@ -74,11 +74,23 @@ func RespondBadRequest(c *gin.Context, message string, details string) {
 
 // HandleError maps domain & app errors to standardized HTTP responses.
 func HandleError(c *gin.Context, err error, defaultMsg string) {
+	// Check for SeatsConflictError first (it is a struct, not a sentinel).
+	var seatsErr *apperrors.SeatsConflictError
+	if errors.As(err, &seatsErr) {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":             "one or more selected seats are not available",
+			"conflicting_seats": seatsErr.ConflictingSeats,
+		})
+		return
+	}
+
 	switch {
 	case errors.Is(err, apperrors.ErrNotFound):
 		RespondError(c, http.StatusNotFound, "resource not found")
 	case errors.Is(err, apperrors.ErrDuplicateKey), errors.Is(err, apperrors.ErrUserAlreadyExists):
 		RespondError(c, http.StatusConflict, err.Error())
+	case errors.Is(err, apperrors.ErrInvalidReference):
+		RespondError(c, http.StatusBadRequest, "referenced resource does not exist (check bus_id or route_id)")
 	case errors.Is(err, apperrors.ErrInvalidCredentials):
 		RespondError(c, http.StatusUnauthorized, "invalid email or password")
 	case errors.Is(err, apperrors.ErrUnauthorized), errors.Is(err, apperrors.ErrInvalidToken):
@@ -86,10 +98,18 @@ func HandleError(c *gin.Context, err error, defaultMsg string) {
 	case errors.Is(err, apperrors.ErrForbidden):
 		RespondError(c, http.StatusForbidden, "forbidden")
 	case errors.Is(err, apperrors.ErrNoSeatsAvailable):
-		RespondError(c, http.StatusConflict, "one or more selected seats are not available")
+		RespondError(c, http.StatusConflict, "no seats available on this schedule")
 	case errors.Is(err, apperrors.ErrBookingNotCancellable):
 		RespondError(c, http.StatusBadRequest, "booking cannot be cancelled")
 	case errors.Is(err, domain.ErrArrivalBeforeDeparture):
+		RespondError(c, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrZeroDuration):
+		RespondError(c, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrDepartureInPast):
+		RespondError(c, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrSameOriginDestination):
+		RespondError(c, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrInvalidDateFormat):
 		RespondError(c, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrInvalidStatusTransition):
 		RespondError(c, http.StatusBadRequest, err.Error())
