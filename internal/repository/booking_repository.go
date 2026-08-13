@@ -87,18 +87,18 @@ func (r *bookingRepository) CreateMany(ctx context.Context, input domain.CreateB
 
 	// Bulk insert all seats in a single SQL query round-trip
 	valueStrings := make([]string, 0, len(input.SeatNumbers))
-	valueArgs := make([]interface{}, 0, len(input.SeatNumbers)*6)
+	valueArgs := make([]interface{}, 0, len(input.SeatNumbers)*7)
 	for i, seatNum := range input.SeatNumbers {
-		base := i * 6
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, 'confirmed', $%d, $%d, $%d)", base+1, base+2, base+3, base+4, base+5, base+6))
-		valueArgs = append(valueArgs, reference, input.ScheduleID, seatNum, pricePerSeat, input.PassengerName, input.PassengerPhone)
+		base := i * 7
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, 'confirmed', $%d, $%d, $%d, $%d)", base+1, base+2, base+3, base+4, base+5, base+6, base+7))
+		valueArgs = append(valueArgs, reference, input.ScheduleID, seatNum, pricePerSeat, input.PassengerName, input.PassengerPhone, input.UserID)
 	}
 
 	query := fmt.Sprintf(`
 		INSERT INTO bookings
-			(booking_reference, schedule_id, seat_number, status, total_price, passenger_name, passenger_phone)
+			(booking_reference, schedule_id, seat_number, status, total_price, passenger_name, passenger_phone, user_id)
 		VALUES %s
-		RETURNING id, booking_reference, schedule_id, seat_number, status,
+		RETURNING id, booking_reference, user_id, schedule_id, seat_number, status,
 		          total_price, passenger_name, passenger_phone,
 		          booked_at, created_at, updated_at
 	`, strings.Join(valueStrings, ", "))
@@ -113,7 +113,7 @@ func (r *bookingRepository) CreateMany(ctx context.Context, input domain.CreateB
 	for rows.Next() {
 		b := &domain.Booking{}
 		if err := rows.Scan(
-			&b.ID, &b.BookingReference, &b.ScheduleID, &b.SeatNumber, &b.Status,
+			&b.ID, &b.BookingReference, &b.UserID, &b.ScheduleID, &b.SeatNumber, &b.Status,
 			&b.TotalPrice, &b.PassengerName, &b.PassengerPhone,
 			&b.BookedAt, &b.CreatedAt, &b.UpdatedAt,
 		); err != nil {
@@ -142,7 +142,7 @@ func (r *bookingRepository) CreateMany(ctx context.Context, input domain.CreateB
 // GetByReference returns all booking rows sharing a booking_reference UUID.
 func (r *bookingRepository) GetByReference(ctx context.Context, reference string) ([]*domain.Booking, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, booking_reference, schedule_id, seat_number, status,
+		SELECT id, booking_reference, user_id, schedule_id, seat_number, status,
 		       total_price, passenger_name, passenger_phone,
 		       booked_at, created_at, updated_at
 		FROM bookings
@@ -158,7 +158,7 @@ func (r *bookingRepository) GetByReference(ctx context.Context, reference string
 	for rows.Next() {
 		b := &domain.Booking{}
 		if err := rows.Scan(
-			&b.ID, &b.BookingReference, &b.ScheduleID, &b.SeatNumber, &b.Status,
+			&b.ID, &b.BookingReference, &b.UserID, &b.ScheduleID, &b.SeatNumber, &b.Status,
 			&b.TotalPrice, &b.PassengerName, &b.PassengerPhone,
 			&b.BookedAt, &b.CreatedAt, &b.UpdatedAt,
 		); err != nil {
@@ -168,6 +168,36 @@ func (r *bookingRepository) GetByReference(ctx context.Context, reference string
 	}
 	if len(bookings) == 0 {
 		return nil, apperrors.ErrNotFound
+	}
+	return bookings, rows.Err()
+}
+
+// GetByUserID returns all bookings belonging to a specific registered user.
+func (r *bookingRepository) GetByUserID(ctx context.Context, userID string) ([]*domain.Booking, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, booking_reference, user_id, schedule_id, seat_number, status,
+		       total_price, passenger_name, passenger_phone,
+		       booked_at, created_at, updated_at
+		FROM bookings
+		WHERE user_id = $1
+		ORDER BY booked_at DESC, seat_number ASC
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("repository: get by user id: %w", err)
+	}
+	defer rows.Close()
+
+	var bookings []*domain.Booking
+	for rows.Next() {
+		b := &domain.Booking{}
+		if err := rows.Scan(
+			&b.ID, &b.BookingReference, &b.UserID, &b.ScheduleID, &b.SeatNumber, &b.Status,
+			&b.TotalPrice, &b.PassengerName, &b.PassengerPhone,
+			&b.BookedAt, &b.CreatedAt, &b.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("repository: scan user booking: %w", err)
+		}
+		bookings = append(bookings, b)
 	}
 	return bookings, rows.Err()
 }

@@ -32,7 +32,7 @@ func (h *RouteHandler) RegisterRoutes(rg *gin.RouterGroup) {
 func (h *RouteHandler) Create(c *gin.Context) {
 	var req models.CreateRouteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondBadRequest(c, "invalid request", err.Error())
+		RespondValidationError(c, err)
 		return
 	}
 

@@ -17,4 +17,11 @@ var (
 	// ErrBookingNotCancellable is returned when a booking cannot be cancelled
 	// (e.g. it is already cancelled or the trip has completed).
 	ErrBookingNotCancellable = errors.New("booking cannot be cancelled")
+
+	// Auth errors
+	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrUserAlreadyExists  = errors.New("user with this email already exists")
+	ErrUnauthorized        = errors.New("unauthorized")
+	ErrForbidden           = errors.New("forbidden")
+	ErrInvalidToken        = errors.New("invalid or expired token")
 )

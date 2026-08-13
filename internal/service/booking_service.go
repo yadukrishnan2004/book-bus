@@ -131,6 +131,16 @@ func (s *bookingService) GetBooking(ctx context.Context, reference string) ([]*d
 	return bookings, nil
 }
 
+// GetUserBookings retrieves all bookings associated with an authenticated user ID.
+func (s *bookingService) GetUserBookings(ctx context.Context, userID string) ([]*domain.Booking, error) {
+	bookings, err := s.bookingRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		slog.Error("service: get user bookings failed", "user_id", userID, "error", err)
+		return nil, err
+	}
+	return bookings, nil
+}
+
 // CancelBooking cancels all seats under a reference and restores available seats.
 func (s *bookingService) CancelBooking(ctx context.Context, reference string) error {
 	if err := s.bookingRepo.CancelByReference(ctx, reference); err != nil {

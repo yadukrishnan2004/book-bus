@@ -40,23 +40,34 @@ func main() {
 	slog.Info("connected to PostgreSQL", "host", cfg.DBHost, "db", cfg.DBName)
 
 	// 4. Build layers (innermost → outermost)
+	userRepo := repository.NewUserRepository(pool)
 	busRepo := repository.NewBusRepository(pool)
 	routeRepo := repository.NewRouteRepository(pool)
 	scheduleRepo := repository.NewScheduleRepository(pool)
 	bookingRepo := repository.NewBookingRepository(pool)
 
+	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
 	busSvc := service.NewBusService(busRepo)
 	routeSvc := service.NewRouteService(routeRepo)
 	scheduleSvc := service.NewScheduleService(scheduleRepo)
 	bookingSvc := service.NewBookingService(bookingRepo, scheduleRepo)
 
+	authHandler := handler.NewAuthHandler(authSvc)
 	busHandler := handler.NewBusHandler(busSvc)
 	routeHandler := handler.NewRouteHandler(routeSvc)
 	scheduleHandler := handler.NewScheduleHandler(scheduleSvc)
 	bookingHandler := handler.NewBookingHandler(bookingSvc)
 
 	// 5. Start HTTP server
-	appServer := server.New(pool, busHandler, routeHandler, scheduleHandler, bookingHandler)
+	appServer := server.New(
+		pool,
+		authSvc,
+		authHandler,
+		busHandler,
+		routeHandler,
+		scheduleHandler,
+		bookingHandler,
+	)
 	httpSrv := appServer.HTTPServer(cfg.Port)
 
 	serverErrors := make(chan error, 1)

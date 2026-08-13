@@ -17,19 +17,26 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
+
+	// Auth
+	JWTSecret      string
+	JWTExpiryHours int
 }
 
 // Load reads configuration from environment variables and returns a Config.
 // It falls back to sensible defaults for local development.
 func Load() *Config {
+	expiryHours := 24
 	return &Config{
-		Port:       getEnv("PORT", "8080"),
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5433"),
-		DBUser:     getEnv("DB_USER", "postgres"),
-		DBPassword: getEnv("DB_PASSWORD", "postgrespassword"),
-		DBName:     getEnv("DB_NAME", "bus_booking"),
-		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
+		Port:           getEnv("PORT", "8080"),
+		DBHost:         getEnv("DB_HOST", "localhost"),
+		DBPort:         getEnv("DB_PORT", "5433"),
+		DBUser:         getEnv("DB_USER", "postgres"),
+		DBPassword:     getEnv("DB_PASSWORD", "postgrespassword"),
+		DBName:         getEnv("DB_NAME", "bus_booking"),
+		DBSSLMode:      getEnv("DB_SSLMODE", "disable"),
+		JWTSecret:      getEnv("JWT_SECRET", "default-bus-booking-secret-change-in-prod"),
+		JWTExpiryHours: expiryHours,
 	}
 }
 

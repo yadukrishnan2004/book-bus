@@ -37,7 +37,7 @@ func (h *ScheduleHandler) RegisterRoutes(rg *gin.RouterGroup) {
 func (h *ScheduleHandler) Create(c *gin.Context) {
 	var req models.CreateScheduleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondBadRequest(c, "invalid request", err.Error())
+		RespondValidationError(c, err)
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *ScheduleHandler) UpdateStatus(c *gin.Context) {
 	id := c.Param("id")
 	var req models.UpdateScheduleStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondBadRequest(c, "invalid request", err.Error())
+		RespondValidationError(c, err)
 		return
 	}
 

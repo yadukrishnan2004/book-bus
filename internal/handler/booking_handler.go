@@ -8,6 +8,7 @@ import (
 
 	"book-bus/internal/apperrors"
 	"book-bus/internal/domain"
+	"book-bus/internal/middleware"
 	"book-bus/internal/models"
 )
 
@@ -25,22 +26,28 @@ func NewBookingHandler(svc domain.BookingService) *BookingHandler {
 func (h *BookingHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	bookings := rg.Group("/bookings")
 	{
-		bookings.POST("/preview", h.Preview) // Step 3
-		bookings.POST("", h.Confirm)         // Step 4
+		bookings.POST("/preview", h.Preview)
+		bookings.POST("", h.Confirm)
+		bookings.GET("/my-bookings", h.GetMyBookings)
 		bookings.GET("/:reference", h.GetByReference)
 		bookings.POST("/:reference/cancel", h.Cancel)
 	}
 }
 
-// Preview handles POST /api/v1/bookings/preview (Step 3: Validate & Price Quote)
+// Preview handles POST /api/v1/bookings/preview
 func (h *BookingHandler) Preview(c *gin.Context) {
 	var req models.BookingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondBadRequest(c, "invalid request", err.Error())
+		RespondValidationError(c, err)
 		return
 	}
 
-	preview, err := h.svc.PreviewBooking(c.Request.Context(), req.ToDomainInput())
+	input := req.ToDomainInput()
+	if userID, ok := middleware.GetUserID(c); ok {
+		input.UserID = &userID
+	}
+
+	preview, err := h.svc.PreviewBooking(c.Request.Context(), input)
 	if err != nil {
 		HandleError(c, err, "failed to preview booking")
 		return
@@ -49,15 +56,20 @@ func (h *BookingHandler) Preview(c *gin.Context) {
 	RespondJSON(c, http.StatusOK, gin.H{"data": models.NewBookingPreviewResponse(preview)})
 }
 
-// Confirm handles POST /api/v1/bookings (Step 4: Lock seats & Confirm)
+// Confirm handles POST /api/v1/bookings
 func (h *BookingHandler) Confirm(c *gin.Context) {
 	var req models.BookingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondBadRequest(c, "invalid request", err.Error())
+		RespondValidationError(c, err)
 		return
 	}
 
-	bookings, reference, err := h.svc.ConfirmBooking(c.Request.Context(), req.ToDomainInput())
+	input := req.ToDomainInput()
+	if userID, ok := middleware.GetUserID(c); ok {
+		input.UserID = &userID
+	}
+
+	bookings, reference, err := h.svc.ConfirmBooking(c.Request.Context(), input)
 	if err != nil {
 		HandleError(c, err, "failed to confirm booking")
 		return
@@ -66,6 +78,41 @@ func (h *BookingHandler) Confirm(c *gin.Context) {
 	RespondJSON(c, http.StatusCreated, gin.H{
 		"message": "booking confirmed successfully",
 		"data":    models.NewBookingConfirmResponse(bookings, reference),
+	})
+}
+
+// GetMyBookings handles GET /api/v1/bookings/my-bookings
+func (h *BookingHandler) GetMyBookings(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		RespondError(c, http.StatusUnauthorized, "authentication required to view personal bookings")
+		return
+	}
+
+	bookings, err := h.svc.GetUserBookings(c.Request.Context(), userID)
+	if err != nil {
+		HandleError(c, err, "failed to fetch user bookings")
+		return
+	}
+
+	// Group bookings by reference
+	grouped := make(map[string][]*domain.Booking)
+	var order []string
+	for _, b := range bookings {
+		if _, exists := grouped[b.BookingReference]; !exists {
+			order = append(order, b.BookingReference)
+		}
+		grouped[b.BookingReference] = append(grouped[b.BookingReference], b)
+	}
+
+	response := make([]*models.BookingConfirmResponse, 0, len(order))
+	for _, ref := range order {
+		response = append(response, models.NewBookingConfirmResponse(grouped[ref], ref))
+	}
+
+	RespondJSON(c, http.StatusOK, gin.H{
+		"data":  response,
+		"count": len(response),
 	})
 }
 

@@ -2,13 +2,23 @@
 	"info": {
 		"_postman_id": "b1a2c3d4-e5f6-7890-abcd-ef1234567890",
 		"name": "Book Bus API",
-		"description": "Complete Postman Collection for the Bus Ticket Booking System API (Clean Architecture Go Backend). Includes health check, bus registration, routes, schedules, seat map, preview, booking confirmation, trip status updates, and cancellation.",
+		"description": "Complete Postman Collection for the Bus Ticket Booking System API (Clean Architecture Go Backend). Includes JWT Authentication, RBAC protection, health check, bus registration, routes, schedules, seat map, preview, booking confirmation, user bookings, trip status updates, and cancellation.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
 		{
 			"key": "base_url",
 			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "",
 			"type": "string"
 		},
 		{
@@ -57,7 +67,158 @@
 			]
 		},
 		{
-			"name": "Buses",
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register Passenger User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John Passenger\",\n    \"email\": \"passenger@example.com\",\n    \"phone\": \"9876543210\",\n    \"password\": \"password123\",\n    \"role\": \"passenger\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new passenger account. Returns user details and JWT bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Register Admin User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"System Admin\",\n    \"email\": \"admin@example.com\",\n    \"phone\": \"9123456789\",\n    \"password\": \"adminpassword123\",\n    \"role\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register an admin user account capable of managing buses, routes, schedules, and trip statuses."
+					},
+					"response": []
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"passenger@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticate user credentials and receive JWT bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Login Admin",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"adminpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticate admin user and receive JWT bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile (Me)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Get current user profile using JWT token."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Buses (Admin)",
 			"item": [
 				{
 					"name": "Register Bus",
@@ -67,6 +228,10 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
@@ -84,7 +249,7 @@
 								"buses"
 							]
 						},
-						"description": "Register a new bus. Allowed bus_type values: standard, sleeper, ac, luxury, mini."
+						"description": "Register a new bus (Admin token required). Allowed bus_type values: standard, sleeper, ac, luxury, mini."
 					},
 					"response": []
 				},
@@ -92,7 +257,12 @@
 					"name": "List Buses",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/buses?limit=20&offset=0",
 							"host": [
@@ -114,7 +284,7 @@
 								}
 							]
 						},
-						"description": "List all registered buses with optional limit and offset pagination."
+						"description": "List all registered buses with optional limit and offset pagination (Admin token required)."
 					},
 					"response": []
 				},
@@ -122,7 +292,12 @@
 					"name": "Get Bus by ID",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/buses/{{bus_id}}",
 							"host": [
@@ -135,14 +310,14 @@
 								"{{bus_id}}"
 							]
 						},
-						"description": "Fetch details of a single bus by its UUID."
+						"description": "Fetch details of a single bus by its UUID (Admin token required)."
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Routes",
+			"name": "Routes (Admin)",
 			"item": [
 				{
 					"name": "Create Route",
@@ -152,6 +327,10 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
@@ -169,7 +348,7 @@
 								"routes"
 							]
 						},
-						"description": "Create a new route with origin, destination, and distance in km."
+						"description": "Create a new route with origin, destination, and distance in km (Admin token required)."
 					},
 					"response": []
 				},
@@ -177,7 +356,12 @@
 					"name": "List Routes",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/api/v1/routes",
 							"host": [
@@ -189,7 +373,7 @@
 								"routes"
 							]
 						},
-						"description": "Fetch a list of all available travel routes."
+						"description": "Fetch a list of all available travel routes (Admin token required)."
 					},
 					"response": []
 				}
@@ -199,13 +383,17 @@
 			"name": "Schedules",
 			"item": [
 				{
-					"name": "Create Schedule",
+					"name": "Create Schedule (Admin)",
 					"request": {
 						"method": "POST",
 						"header": [
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
@@ -223,12 +411,12 @@
 								"schedules"
 							]
 						},
-						"description": "Schedule a bus on a route with departure time, arrival time, and price."
+						"description": "Schedule a bus on a route with departure time, arrival time, and price (Admin token required)."
 					},
 					"response": []
 				},
 				{
-					"name": "Step 1 - Browse Schedules",
+					"name": "Step 1 - Browse Schedules (Public)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -262,7 +450,7 @@
 					"response": []
 				},
 				{
-					"name": "Step 2 - Get Seat Map",
+					"name": "Step 2 - Get Seat Map (Public)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -284,7 +472,7 @@
 					"response": []
 				},
 				{
-					"name": "Get Schedule by ID",
+					"name": "Get Schedule by ID (Public)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -305,13 +493,17 @@
 					"response": []
 				},
 				{
-					"name": "Update Trip Status",
+					"name": "Update Trip Status (Admin)",
 					"request": {
 						"method": "PATCH",
 						"header": [
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
@@ -331,7 +523,7 @@
 								"status"
 							]
 						},
-						"description": "Update trip status (ongoing, completed, cancelled). Marking completed or cancelled automatically cascades to passenger bookings."
+						"description": "Update trip status (ongoing, completed, cancelled). Marking completed or cancelled automatically cascades to passenger bookings (Admin token required)."
 					},
 					"response": []
 				}
@@ -348,11 +540,16 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"description": "Optional Authorization header for logged in user"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"Yadu K\",\n    \"passenger_phone\": \"9876543210\"\n}"
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"John Passenger\",\n    \"passenger_phone\": \"9876543210\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/bookings/preview",
@@ -366,7 +563,7 @@
 								"preview"
 							]
 						},
-						"description": "Step 3: Validate selected seats and calculate total price quote without modifying the database."
+						"description": "Step 3: Validate selected seats and calculate total price quote without modifying database."
 					},
 					"response": []
 				},
@@ -378,11 +575,16 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"description": "Optional Authorization header (binds user_id to reservation if provided)"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"Yadu K\",\n    \"passenger_phone\": \"9876543210\"\n}"
+							"raw": "{\n    \"schedule_id\": \"{{schedule_id}}\",\n    \"seat_numbers\": [5, 6],\n    \"passenger_name\": \"John Passenger\",\n    \"passenger_phone\": \"9876543210\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/bookings",
@@ -395,7 +597,33 @@
 								"bookings"
 							]
 						},
-						"description": "Step 4: Lock seats, create passenger bookings, and return booking_reference UUID."
+						"description": "Step 4: Lock seats, create passenger bookings, and return booking_reference UUID. If Authorization header is provided, links reservation to user account."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Bookings (Authenticated)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/my-bookings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings",
+								"my-bookings"
+							]
+						},
+						"description": "Retrieve all booking reservations associated with the authenticated passenger account."
 					},
 					"response": []
 				},

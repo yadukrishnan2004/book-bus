@@ -35,7 +35,7 @@ func (h *BusHandler) RegisterRoutes(rg *gin.RouterGroup) {
 func (h *BusHandler) Create(c *gin.Context) {
 	var req models.CreateBusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondBadRequest(c, "invalid request", err.Error())
+		RespondValidationError(c, err)
 		return
 	}
 

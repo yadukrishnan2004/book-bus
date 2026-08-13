@@ -56,6 +56,7 @@ type ScheduleSummary struct {
 
 // CreateBookingInput is the input for both preview and confirm actions.
 type CreateBookingInput struct {
+	UserID         *string
 	ScheduleID     string
 	SeatNumbers    []int
 	PassengerName  string
@@ -70,6 +71,8 @@ type BookingRepository interface {
 	CreateMany(ctx context.Context, input CreateBookingInput, reference string, pricePerSeat float64) ([]*Booking, error)
 	// GetByReference returns all seat bookings sharing a reference UUID.
 	GetByReference(ctx context.Context, reference string) ([]*Booking, error)
+	// GetByUserID returns all bookings placed by a specific registered user.
+	GetByUserID(ctx context.Context, userID string) ([]*Booking, error)
 	// CancelByReference cancels all bookings under a reference and restores seats.
 	CancelByReference(ctx context.Context, reference string) error
 }
@@ -82,6 +85,8 @@ type BookingService interface {
 	ConfirmBooking(ctx context.Context, input CreateBookingInput) ([]*Booking, string, error)
 	// GetBooking retrieves all seat rows under a booking reference.
 	GetBooking(ctx context.Context, reference string) ([]*Booking, error)
+	// GetUserBookings retrieves all bookings for an authenticated user.
+	GetUserBookings(ctx context.Context, userID string) ([]*Booking, error)
 	// CancelBooking cancels all seats under a booking reference.
 	CancelBooking(ctx context.Context, reference string) error
 }
